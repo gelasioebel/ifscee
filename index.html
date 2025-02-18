@@ -1,11 +1,612 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IFSCee</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        .header {
+            background-color: #00c853;
+            color: white;
+            padding: 1rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+        }
+
+        .container {
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .panel {
+            background: white;
+            padding: 1rem;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .editor {
+            height: 400px;
+            background: #1e1e1e;
+            color: #fff;
+            font-family: monospace;
+            padding: 1rem;
+            border: none;
+            width: 100%;
+            resize: none;
+            margin: 1rem 0;
+        }
+
+        .button {
+            background: #00c853;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        .button:hover {
+            background: #00a844;
+        }
+
+        .memory-state, .call-stack {
+            margin-bottom: 1rem;
+        }
+
+        .call-stack-item {
+            background: #fff3dc;
+            border: 1px solid #ffecc7;
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            border-radius: 4px;
+        }
+
+        .controls {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #00c853;
+            border-radius: 2px;
+            width: 50%;
+        }
+
+        .output {
+            grid-column: 1 / -1;
+            background: black;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        h2 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+    </style>
 </head>
 <body>
+<header class="header">
     <h1>IFSCee</h1>
+    <p>Visualize e entenda código C passo a passo</p>
+</header>
+
+<main class="container">
+    <div class="panel">
+        <h2>Editor de Código</h2>
+        <textarea id="code-editor" class="editor">#include <stdio.h>
+
+int calcular_factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }else {
+        return n * calcular_factorial(n - 1);
+    }
+}
+
+int main() {
+    int result = calculate_factorial(5);
+    printf("Fatorial de 5 é %d\n", result);
+    return 0;
+}</textarea>
+        <button class="button" onclick="visualizarExecucao()">Visualizar Execução</button>
+        <button class="button" onclick="limparCodigo()">Limpar Código</button>
+    </div>
+
+    <div class="panel">
+        <h2>Visualização</h2>
+        <div class="memory-state">
+            <h3>Estado da Memória</h3>
+            <div id="memory-content">
+                n = 5<br>
+                result = 120
+            </div>
+        </div>
+
+        <div class="call-stack">
+            <h3>Pilha de Chamadas</h3>
+            <div id="call-stack-content">
+                <div class="call-stack-item">calculate_factorial(n=5)</div>
+                <div class="call-stack-item">calculate_factorial(n=4)</div>
+                <div class="call-stack-item">calculate_factorial(n=3)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel controls">
+        <h2>Controles</h2>
+        <div>
+            <button class="button" onclick="primeiro()">⏮ Primeiro</button>
+            <button class="button" onclick="anterior()">⏪ Anterior</button>
+            <button class="button" onclick="proximo()">⏩ Próximo</button>
+            <button class="button" onclick="ultimo()">⏭ Último</button>
+        </div>
+        <div>
+            <div class="progress-bar">
+                <div class="progress-bar-fill"></div>
+            </div>
+            <small>Passo 3 de 6</small>
+        </div>
+    </div>
+
+    <div class="panel output">
+        <h2>Saída do Programa</h2>
+        <div id="program-output">Fatorial de 5 é 120</div>
+    </div>
+</main>
+
+<script>
+    // Tokens e seus tipos
+    const TokenType = {
+        NUMBER: 'NUMBER',
+        IDENTIFIER: 'IDENTIFIER',
+        OPERATOR: 'OPERATOR',
+        KEYWORD: 'KEYWORD',
+        PUNCTUATION: 'PUNCTUATION'
+    };
+
+    // Lexer - Análise Léxica
+    function lexer(code) {
+        const tokens = [];
+        const keywords = ['int', 'if', 'else', 'return'];
+        const operators = ['+', '-', '*', '/', '=', '==', '<', '<=', '>', '>='];
+        let current = '';
+
+        function isNumber(char) {
+            return !isNaN(char) && !isNaN(parseFloat(char));
+        }
+
+        function isLetter(char) {
+            return /[a-zA-Z_]/.test(char);
+        }
+
+        function addToken() {
+            if (!current) return;
+
+            if (keywords.includes(current)) {
+                tokens.push({ type: TokenType.KEYWORD, value: current });
+            } else if (!isNaN(current)) {
+                tokens.push({ type: TokenType.NUMBER, value: parseInt(current) });
+            } else if (isLetter(current[0])) {
+                tokens.push({ type: TokenType.IDENTIFIER, value: current });
+            }
+            current = '';
+        }
+
+        for (let i = 0; i < code.length; i++) {
+            const char = code[i];
+
+            if (char === ' ' || char === '\\n' || char === '\\t') {
+                addToken();
+                continue;
+            }
+
+            if (operators.includes(char)) {
+                addToken();
+                // Verificar operadores de dois caracteres
+                if (i + 1 < code.length && operators.includes(char + code[i + 1])) {
+                    tokens.push({ type: TokenType.OPERATOR, value: char + code[i + 1] });
+                    i++;
+                } else {
+                    tokens.push({ type: TokenType.OPERATOR, value: char });
+                }
+                continue;
+            }
+
+            if ([';', '(', ')', '{', '}'].includes(char)) {
+                addToken();
+                tokens.push({ type: TokenType.PUNCTUATION, value: char });
+                continue;
+            }
+
+            current += char;
+        }
+
+        addToken();
+        return tokens;
+    }
+
+    // Parser - Análise Sintática Simples
+    function parser(tokens) {
+        let current = 0;
+
+        function peek() {
+            return tokens[current];
+        }
+
+        function consume() {
+            return tokens[current++];
+        }
+
+        function parseExpression() {
+            const left = consume();
+            if (current >= tokens.length) return left;
+
+            const operator = peek();
+            if (operator && operator.type === TokenType.OPERATOR) {
+                consume();
+                const right = consume();
+                return {
+                    type: 'BinaryExpression',
+                    operator: operator.value,
+                    left,
+                    right
+                };
+            }
+
+            return left;
+        }
+
+        function parseStatement() {
+            const token = peek();
+
+            if (token.type === TokenType.KEYWORD) {
+                if (token.value === 'if') {
+                    consume(); // if
+                    const condition = parseExpression();
+                    const thenBranch = parseStatement();
+                    let elseBranch = null;
+
+                    if (current < tokens.length && peek().value === 'else') {
+                        consume(); // else
+                        elseBranch = parseStatement();
+                    }
+
+                    return {
+                        type: 'IfStatement',
+                        condition,
+                        thenBranch,
+                        elseBranch
+                    };
+                }
+
+                if (token.value === 'int') {
+                    consume(); // int
+                    const identifier = consume();
+                    consume(); // =
+                    const value = parseExpression();
+                    consume(); // ;
+
+                    return {
+                        type: 'VariableDeclaration',
+                        identifier: identifier.value,
+                        value
+                    };
+                }
+            }
+
+            const expression = parseExpression();
+            if (peek() && peek().value === ';') {
+                consume(); // ;
+            }
+            return expression;
+        }
+
+        const statements = [];
+        while (current < tokens.length) {
+            statements.push(parseStatement());
+        }
+
+        return statements;
+    }
+
+    // Interpretador
+    function interpreter(ast) {
+        const memory = {};
+        const output = [];
+
+        function evaluate(node) {
+            if (!node) return null;
+
+            if (node.type === TokenType.NUMBER) {
+                return node.value;
+            }
+
+            if (node.type === TokenType.IDENTIFIER) {
+                return memory[node.value];
+            }
+
+            if (node.type === 'BinaryExpression') {
+                const left = evaluate(node.left);
+                const right = evaluate(node.right);
+
+                switch (node.operator) {
+                    case '+': return left + right;
+                    case '-': return left - right;
+                    case '*': return left * right;
+                    case '/': return left / right;
+                    case '==': return left === right;
+                    case '<': return left < right;
+                    case '<=': return left <= right;
+                    case '>': return left > right;
+                    case '>=': return left >= right;
+                }
+            }
+
+            if (node.type === 'VariableDeclaration') {
+                const value = evaluate(node.value);
+                memory[node.identifier] = value;
+                output.push(`Variável ${node.identifier} = ${value}`);
+                return value;
+            }
+
+            if (node.type === 'IfStatement') {
+                const condition = evaluate(node.condition);
+                if (condition) {
+                    return evaluate(node.thenBranch);
+                } else if (node.elseBranch) {
+                    return evaluate(node.elseBranch);
+                }
+            }
+        }
+
+        for (const statement of ast) {
+            evaluate(statement);
+        }
+
+        return { memory, output };
+    }
+
+    // Estado global da aplicação
+    const state = {
+        currentStep: 3,
+        totalSteps: 6,
+        memory: {
+            n: 5,
+            result: 120
+        },
+        callStack: [
+            'calculate_factorial(n=5)',
+            'calculate_factorial(n=4)',
+            'calculate_factorial(n=3)'
+        ]
+    };
+
+    // Funções de controle
+    function iniciarInterpretacao() {
+        const code = document.getElementById('code-editor').innerText;
+        try {
+            // Reset do estado
+            state.currentStep = 0;
+            state.memory = {};
+            state.callStack = ['main()'];
+            state.lines = code.split('\n');
+            state.currentLineIndex = 0;
+            state.interpreting = true;
+
+            // Análise Léxica
+            state.tokens = lexer(code);
+
+            // Análise Sintática
+            state.ast = parser(state.tokens);
+
+            // Definir número total de passos (número de linhas de código)
+            state.totalSteps = state.lines.length - 1;
+
+            // Highlight primeira linha
+            highlightLine(state.currentLineIndex);
+
+            // Atualizar interface
+            updateUI();
+
+            // Mostrar início da interpretação
+            document.getElementById('program-output').innerHTML =
+                'Interpretação iniciada...\n';
+
+        } catch (error) {
+            document.getElementById('program-output').innerHTML =
+                `Erro: ${error.message}`;
+        }
+    }
+
+    function proximoPasso() {
+        if (!state.interpreting || state.currentStep >= state.totalSteps) return;
+
+        state.currentStep++;
+        state.currentLineIndex++;
+
+        // Executar interpretação da linha atual
+        const line = state.lines[state.currentLineIndex];
+        try {
+            // Simular execução da linha (simplificado)
+            if (line.includes('int x = 5')) {
+                state.memory['x'] = 5;
+            } else if (line.includes('y = x + 10')) {
+                state.memory['y'] = state.memory['x'] + 10;
+            } else if (line.includes('y = y - 2')) {
+                state.memory['y'] = state.memory['y'] - 2;
+            }
+
+            // Highlight linha atual
+            highlightLine(state.currentLineIndex);
+
+            // Atualizar interface
+            updateUI();
+
+            // Atualizar saída
+            document.getElementById('program-output').innerHTML +=
+                `Executando: ${line.trim()}\n`;
+
+        } catch (error) {
+            document.getElementById('program-output').innerHTML +=
+                `Erro: ${error.message}\n`;
+        }
+    }
+
+    function passoAnterior() {
+        if (!state.interpreting || state.currentStep <= 0) return;
+
+        state.currentStep--;
+        state.currentLineIndex--;
+
+        // Highlight linha atual
+        highlightLine(state.currentLineIndex);
+
+        // Atualizar interface
+        updateUI();
+    }
+
+    function primeiro() {
+        if (!state.interpreting) return;
+
+        state.currentStep = 0;
+        state.currentLineIndex = 0;
+        state.memory = {};
+
+        // Highlight primeira linha
+        highlightLine(state.currentLineIndex);
+
+        // Atualizar interface
+        updateUI();
+    }
+
+    function ultimo() {
+        if (!state.interpreting) return;
+
+        while (state.currentStep < state.totalSteps) {
+            proximoPasso();
+        }
+    }
+
+    function limparCodigo() {
+        const code = document.getElementById('code-editor').value;
+        try {
+            // Análise Léxica
+            const tokens = lexer(code);
+            console.log('Tokens:', tokens);
+
+            // Análise Sintática
+            const ast = parser(tokens);
+            console.log('AST:', ast);
+
+            // Interpretação
+            const { memory, output } = interpreter(ast);
+
+            // Atualizar estado
+            state.memory = memory;
+
+            // Atualizar interface
+            document.getElementById('memory-content').innerHTML =
+                Object.entries(memory)
+                    .map(([key, value]) => `${key} = ${value}`)
+                    .join('<br>');
+
+            document.getElementById('program-output').innerHTML =
+                output.join('<br>');
+
+            updateUI();
+        } catch (error) {
+            document.getElementById('program-output').innerHTML =
+                `Erro: ${error.message}`;
+        }
+    }
+
+    function limparCodigo() {
+        document.getElementById('code-editor').value = '';
+        updateUI();
+    }
+
+    function primeiro() {
+        state.currentStep = 1;
+        updateUI();
+    }
+
+    function anterior() {
+        if (state.currentStep > 1) {
+            state.currentStep--;
+            updateUI();
+        }
+    }
+
+    function proximo() {
+        if (state.currentStep < state.totalSteps) {
+            state.currentStep++;
+            updateUI();
+        }
+    }
+
+    function ultimo() {
+        state.currentStep = state.totalSteps;
+        updateUI();
+    }
+
+    function updateUI() {
+        // Atualizar barra de progresso
+        const progressBar = document.querySelector('.progress-bar-fill');
+        progressBar.style.width = `${(state.currentStep / state.totalSteps) * 100}%`;
+
+        // Atualizar texto do passo
+        document.querySelector('small').textContent = `Passo ${state.currentStep} de ${state.totalSteps}`;
+    }
+
+    // Função para inicializar a aplicação
+    function init() {
+        updateUI();
+    }
+
+    // Event Listeners
+    document.getElementById('btnExecutar').addEventListener('click', iniciarInterpretacao);
+    document.getElementById('btnLimpar').addEventListener('click', limparCodigo);
+    document.getElementById('btnPrimeiro').addEventListener('click', primeiro);
+    document.getElementById('btnAnterior').addEventListener('click', passoAnterior);
+    document.getElementById('btnProximo').addEventListener('click', proximoPasso);
+    document.getElementById('btnUltimo').addEventListener('click', ultimo);
+
+    // Inicializar quando a página carregar
+    window.onload = updateUI;
+</script>
 </body>
 </html>
