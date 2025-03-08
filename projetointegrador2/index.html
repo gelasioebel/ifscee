@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFSCEE - Veja C sendo Interpretado</title>
+    <style>
+        :root {
+            / Cores base */
+        --corBase: #f3f4f6;
+        --corPrimaria: #3b82f6;
+        --corSecundaria: #374151;
+        --corBorda: #d1d5db;
+        --corCabecalho: #e5e7eb;
+        --corFundoClaro: white;
+        --corTextoClaro: white;
+        --corFundoEditor: #111827;
+        --corTextoEditor: #4ade80;
+        --corFundoTerminal: black;
+        --corTextoTerminal: white;
+
+        /* Cores para ações */
+        --corAcao: #3b82f6;
+        --corExecucao: #16a34a;
+        --corAlerta: #ca8a04;
+        --corErro: #dc2626;
+
+        /* Espaçamento e bordas */
+        --espacamento: 8px;
+        --espacamentoDuplo: 16px;
+        --borda: 1px solid var(--corBorda);
+        --bordaRedimensionavel: 4px solid var(--corBorda);
+        --raio: 4px;
+
+        /* Alturas padrão */
+        --alturaVh: 100vh;
+        --alturaTopo: 5vh;
+        --alturaRodape: 5vh;
+        --alturaAst: 20vh;
+        --alturaCabecalho: 5vh;
+
+        /* Layout 1 padrão (Layout Padrão) */
+        --larguraArquivos: 10%;
+        --larguraEditor: 30%;
+        --larguraMemoria: 60%;
+        --direcaoPrincipal: row;
+        --direcaoTokensAst: row;
+        --larguraTokens: 50%;
+        --larguraAst: 50%;
+        --direcaoPilhaHeap: row;
+        --larguraPilha: 20%;
+        --larguraHeap: 80%;
+        --direcaoEntradaSaida: row;
+        }
+
+        /* Layouts alternativos */
+
+        /* Layout 2 (Layout Foco Editor) */
+        .layout2 {
+            --larguraArquivos: 10%;
+            --larguraEditor: 60%;
+            --larguraMemoria: 30%;
+        }
+
+        /* Layout 3 (Layout Empilhado) */
+        .layout3 {
+            --direcaoPrincipal: column;
+            --larguraArquivos: 100%;
+            --larguraEditor: 100%;
+            --larguraMemoria: 100%;
+            --alturaAst: 30vh;
+        }
+
+        /* Reset básico */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Lexend, sans-serif;
+        }
+
+        /* Estrutura básica */
+        body {
+            display: flex;
+            flex-direction: column;
+            height: var(--alturaVh);
+            background-color: var(--corBase);
+        }
+
+        /* Componentes Redimensionáveis */
+        .bordaRedimensionavelDireita {
+            border-right: var(--bordaRedimensionavel);
+            position: relative;
+            cursor: col-resize;
+        }
+
+        .bordaRedimensionavelBaixo {
+            border-bottom: var(--bordaRedimensionavel);
+            position: relative;
+            cursor: row-resize;
+        }
+
+        .bordaRedimensionavelDireita:hover {
+            border-right-color: var(--corPrimaria);
+        }
+
+        .bordaRedimensionavelBaixo:hover {
+            border-bottom-color: var(--corPrimaria);
+        }
+
+        .redimensionandoH .bordaRedimensionavelDireita {
+            border-right-color: var(--corPrimaria);
+        }
+
+        .redimensionandoV .bordaRedimensionavelBaixo {
+            border-bottom-color: var(--corPrimaria);
+        }
+
+        /* Banner */
+        .topo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: sticky;
+            background-color: var(--corPrimaria);
+            color: var(--corTextoClaro);
+            padding: var(--espacamento);
+            height: var(--alturaTopo);
+            border-bottom: var(--borda);
+        }
+
+        /* Botões e ações */
+        .botao {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: var(--espacamento);
+            color: inherit;
+        }
+
+        .botaoAcao {
+            background-color: var(--corAcao);
+            color: var(--corTextoClaro);
+            border: none;
+            padding: var(--espacamento);
+            border-radius: var(--raio);
+            cursor: pointer;
+        }
+
+        .botaoExecutar {
+            background-color: var(--corExecucao);
+        }
+
+        .botaoAlerta {
+            background-color: var(--corAlerta);
+        }
+
+        .botaoErro {
+            background-color: var(--corErro);
+        }
+
+        /* Menu de layouts */
+        .menuLayouts {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--corFundoClaro);
+            border: var(--borda);
+            border-radius: var(--raio);
+            display: none;
+            z-index: 100;
+        }
+
+        .menuLayouts.ativo {
+            display: flex;
+        }
+
+        .opcaoLayout {
+            padding: var(--espacamento);
+            cursor: pointer;
+            color: var(--corSecundaria);
+            text-align: left;
+            display: flex;
+            width: 100%;
+            border: none;
+            background: none;
+        }
+
+        .opcaoLayout:hover {
+            background-color: var(--corBase);
+        }
+
+        /* Modal de configuração /
+        .modalConfig {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--corFundoClaro);
+            /box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);*/
+        border-radius: var(--raio);
+        padding: var(--espacamentoDuplo);
+        z-index: 1000;
+        width: 80%;
+        max-width: 80vw;
+        display: none;
+        border: var(--borda);
+        }
+
+        .modalConfig.ativo {
+            display: inline-block;
+        }
+
+        .fundoModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+
+        .fundoModal.ativo {
+            display: block;
+        }
+
+        .cabecalhoModal {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--espacamentoDuplo);
+            padding-bottom: var(--espacamento);
+            border-bottom: var(--borda);
+        }
+
+        .fechaModal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--corSecundaria);
+        }
+
+        /* Cards de layout */
+        .opcoesLayout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--espacamentoDuplo);
+        }
+
+        .cartaoLayout {
+            flex: 1 1 calc(50% - var(--espacamentoDuplo));
+            border: var(--borda);
+            border-radius: var(--raio);
+            padding: var(--espacamento);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cartaoLayout:hover {
+            background-color: var(--corBase);
+        }
+
+        .cartaoLayout.selecionado {
+            border-color: var(--corPrimaria);
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .visualizacaoLayout {
+            width: 100%;
+            height: 80px;
+            background-color: var(--corBase);
+            margin-bottom: var(--espacamento);
+            display: flex;
+            border: var(--borda);
+        }
+
+        .visualizacaoArquivos,
+        .visualizacaoEditor,
+        .visualizacaoMemoria {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .visualizacaoArquivos {
+            background-color: #e5e7eb;
+        }
+
+        .visualizacaoEditor {
+            background-color: #d1d5db;
+        }
+
+        .visualizacaoMemoria {
+            background-color: #e5e7eb;
+        }
+
+        .nomeLayout {
+            font-weight: bold;
+        }
+
+        .descricaoLayout {
+            font-size: 0.8rem;
+            color: var(--corSecundaria);
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        .botaoAplicar {
+            margin-top: var(--espacamentoDuplo);
+            width: 100%;
+        }
+
+        /* Personalização de layout */
+        .containerPersonalizacao {
+            margin-top: var(--espacamentoDuplo);
+            border-top: var(--borda);
+            padding-top: var(--espacamentoDuplo);
+        }
+
+        .tituloPersonalizacao {
+            font-weight: bold;
+            margin-bottom: var(--espacamento);
+        }
+
+        .camposPersonalizados {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--espacamento);
+        }
+
+        .campoPersonalizado {
+            flex: 1 1 calc(33.33% - var(--espacamento));
+            display: flex;
+            flex-direction: column;
+        }
+
+        .rotuloPersonalizado {
+            font-size: 0.8rem;
+            margin-bottom: 2px;
+        }
+
+        .entradaPersonalizada {
+            padding: 4px;
+            border: var(--borda);
+            border-radius: var(--raio);
+        }
+
+        .containerCaixaSelecao {
+            display: flex;
+            align-items: center;
+            margin-top: var(--espacamento);
+        }
+
+        .caixaSelecaoPersonalizada {
+            margin-right: 5px;
+        }
+
+        /* Layout principal */
+        .principal {
+            display: flex;
+            flex-direction: var(--direcaoPrincipal);
+            flex: 1;
+            overflow: hidden;
+            border: var(--borda);
+        }
+
+        /* Painéis principais */
+        .arquivos {
+            width: var(--larguraArquivos);
+            background-color: var(--corFundoClaro);
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .centro {
+            width: var(--larguraEditor);
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .memoria {
+            width: var(--larguraMemoria);
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        /* Cabeçalhos e conteúdos */
+        .cabecalho {
+            background-color: var(--corCabecalho);
+            padding: var(--espacamento);
+            font-weight: bold;
+            border-bottom: var(--borda);
+            height: var(--alturaCabecalho);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .conteudo {
+            padding: var(--espacamento);
+            overflow: auto;
+            flex: 1;
+            border: var(--borda);
+        }
+
+        /* Editor e navegação */
+        .editor {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .navegacao {
+            background-color: var(--corSecundaria);
+            padding: var(--espacamento);
+            display: flex;
+            justify-content: center;
+            gap: var(--espacamento);
+            flex-wrap: wrap;
+            border: var(--borda);
+        }
+
+        /* Entrada e Saída */
+        .entrada,
+        .saida {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .containerEntradaSaida {
+            display: flex;
+            flex-direction: var(--direcaoEntradaSaida);
+            border: var(--borda);
+        }
+
+        .areaTexto {
+            width: 100%;
+            height: 80px;
+            padding: var(--espacamento);
+            border: var(--borda);
+            resize: none;
+            font-family: monospace;
+        }
+
+        .areaEntrada {
+            background-color: var(--corFundoEditor);
+            color: var(--corTextoEditor);
+        }
+
+        .areaSaida {
+            background-color: var(--corFundoTerminal);
+            color: var(--corTextoTerminal);
+        }
+
+        /* Memória Componentes */
+        .memoria > .conteudo {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .containerPilhaHeap {
+            display: flex;
+            flex-direction: var(--direcaoPilhaHeap);
+            flex: 1;
+            border: var(--borda);
+        }
+
+        .pilha {
+            flex: 0 0 var(--larguraPilha);
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .heap {
+            flex: 0 0 var(--larguraHeap);
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        /* Tokens e AST */
+        .tokensAst {
+            display: flex;
+            flex-direction: var(--direcaoTokensAst);
+            height: var(--alturaAst);
+            border: var(--borda);
+        }
+
+        .tokens,
+        .ast {
+            display: flex;
+            flex-direction: column;
+            border: var(--borda);
+        }
+
+        .tokens {
+            width: var(--larguraTokens);
+        }
+
+        .ast {
+            width: var(--larguraAst);
+        }
+
+        /* Rodapé */
+        .rodape {
+            height: var(--alturaRodape);
+            padding: var(--espacamento);
+            background-color: var(--corBase);
+            border-top: var(--borda);
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        /* Itens de arquivo */
+        .itemArquivo {
+            padding: var(--espacamento);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            border-bottom: var(--borda);
+        }
+
+        .itemArquivo:hover {
+            background-color: var(--corBase);
+        }
+
+        .iconeArquivo {
+            margin-right: var(--espacamento);
+        }
+
+        .subitem {
+            margin-left: calc(var(--espacamento) * 3);
+        }
+
+        /* Estilos gerais */
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+            background-color: var(--ifsc-cinza-claro);
+            margin: 0;
+            padding: 0;
+            color: var(--cor-texto-escuro);
+        }
+
+        /* Topo */
+        .topo {
+            background: linear-gradient(to bottom, var(--ifsc-verde-primario), var(--ifsc-verde-secundario));
+            color: var(--cor-texto-claro);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .logo-ifsc {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-ifsc img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Cabeçalhos dos painéis */
+        .cabecalho-ifsc {
+            background-color: var(--ifsc-verde-primario);
+            color: var(--cor-texto-claro);
+            padding: 8px 15px;
+            border-radius: 4px 4px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 500;
+        }
+
+        .icone-cabecalho {
+            margin-right: 10px;
+        }
+
+        /* Botões */
+        .botao-ifsc {
+            background-color: rgba(255,255,255,0.2);
+            color: var(--cor-texto-claro);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .botao-ifsc:hover {
+            background-color: rgba(255,255,255,0.3);
+        }
+
+        .botao-primario {
+            background-color: var(--cor-execucao);
+        }
+
+        .botao-secundario {
+            background-color: var(--cor-destaque);
+        }
+
+        .botao-perigo {
+            background-color: var(--cor-erro);
+        }
+
+        /* Painéis */
+        .painel {
+            background-color: var(--cor-fundo-principal);
+            border-radius: 4px;
+            border: 1px solid var(--cor-borda);
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Conteúdo dos painéis */
+        .conteudo-painel {
+            padding: 10px;
+            overflow: auto;
+        }
+
+        /* Editor de código */
+        .editor-codigo {
+            background-color: var(--cor-fundo-editor);
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 10px;
+            border: 1px solid var(--cor-borda);
+            border-radius: 4px;
+            min-height: 300px;
+        }
+
+        .linha-ativa {
+            background-color: var(--cor-linha-ativa);
+            border-left: 3px solid var(--ifsc-verde-primario);
+        }
+
+        /* Terminal */
+        .terminal {
+            background-color: var(--cor-fundo-terminal);
+            color: var(--cor-texto-terminal);
+            font-family: 'Consolas', 'Monaco', monospace;
+            padding: 10px;
+            border-radius: 4px;
+            min-height: 100px;
+            white-space: pre-wrap;
+        }
+
+        :root {
+            /* Cores institucionais do IFSC */
+            --ifsc-verde-primario: #006837;
+            --ifsc-verde-secundario: #00552e;
+            --ifsc-cinza-claro: #f5f5f5;
+            --ifsc-cinza-medio: #e9ecef;
+            --ifsc-cinza-escuro: #495057;
+
+            /* Cores funcionais */
+            --cor-execucao: #198754;
+            --cor-destaque: #0d6efd;
+            --cor-alerta: #ffc107;
+            --cor-erro: #dc3545;
+
+            /* Cores de fundo e texto */
+            --cor-fundo-principal: #ffffff;
+            --cor-texto-claro: #ffffff;
+            --cor-texto-escuro: #212529;
+            --cor-borda: #dee2e6;
+
+            /* Cores para o terminal */
+            --cor-fundo-terminal: #000000;
+            --cor-texto-terminal: #ffffff;
+
+            /* Cores para o editor */
+            --cor-fundo-editor: #f8f9fa;
+            --cor-linha-ativa: #e2f3e9;
+        }
+
+        .cabecalho-ifsc {
+            background: linear-gradient(to right, var(--ifsc-verde-primario), var(--ifsc-verde-secundario));
+        }
+
+        body {
+            font-family: 'Roboto', 'Arial', sans-serif;
+        }
+
+        h1, h2, h3, .cabecalho-ifsc {
+            font-family: 'Montserrat', 'Arial', sans-serif;
+            font-weight: 600;
+        }
+
+
+        @media (max-width: 1200px) {
+            .principal {
+                flex-direction: column;
+            }
+
+            .arquivos, .centro, .memoria {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+
+            .tokens, .ast {
+                width: 100%;
+                height: auto;
+            }
+
+            .tokensAst {
+                flex-direction: column;
+            }
+        }
+
+
+        /* Transições suaves */
+        .botao-ifsc, .itemArquivo, .cabecalho-ifsc, .editor-codigo {
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Animação para linha ativa */
+        @keyframes pulso-linha {
+            0% { background-color: var(--cor-linha-ativa); }
+            50% { background-color: rgba(0,104,55,0.2); }
+            100% { background-color: var(--cor-linha-ativa); }
+        }
+
+        .linha-ativa.executando {
+            animation: pulso-linha 1.5s infinite;
+        }
+
+
+
+
+
+
+
+
+
+
+
+    </style>
+
+
+</head>
+<body>
+<!-- Banner -->
+<div class="topo">
+    <div class="logo-ifsc">
+        <img src="logo-ifsc.svg" alt="Logo IFSC">
+    </div>
+    <h1>IFSCEE - Veja C sendo Interpretado</h1>
+    <div class="controles-topo">
+        <button class="botao-ifsc" id="botaoLayout">Layouts</button>
+        <button class="botao-ifsc" id="botaoConfig">⚙</button>
+    </div>
+</div>
+
+<!-- Container Principal -->
+<div class="principal painelContainer">
+    <!-- Arquivos -->
+    <div class="arquivos bordaRedimensionavelDireita">
+        <div class="cabecalho-ifsc">
+            <div class="icone-cabecalho">📁</div>
+            <div class="titulo-cabecalho">ARQUIVOS</div>
+            <button class="controle-cabecalho">◀</button>
+        </div>
+        <div class="conteudo">
+            <div class="itemArquivo">
+                <span class="iconeArquivo">▼</span>
+                <span class="iconeArquivo">📁</span>
+                <span>src</span>
+            </div>
+            <div class="itemArquivo subitem">
+                <span class="iconeArquivo">📄</span>
+                <span>main.js</span>
+            </div>
+            <div class="itemArquivo subitem">
+                <span class="iconeArquivo">📄</span>
+                <span>utils.js</span>
+            </div>
+            <div class="itemArquivo">
+                <span class="iconeArquivo">▶</span>
+                <span class="iconeArquivo">📁</span>
+                <span>lib</span>
+            </div>
+            <div class="itemArquivo">
+                <span class="iconeArquivo">📄</span>
+                <span>README.md</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor e Controles -->
+    <div class="centro bordaRedimensionavelDireita">
+        <!-- Editor -->
+        <div class="editor bordaRedimensionavelBaixo">
+            <div class="cabecalho-ifsc">
+                <div class="icone-cabecalho">{ } </div>
+                <div class="titulo-cabecalho">EDITOR DE CÓDIGO</div>
+                <button class="controle-cabecalho">◀</button>
+            </div>
+            <div class="conteudo">
+                <!-- Conteúdo do editor vai aqui -->
+            </div>
+        </div>
+
+        <!-- Navegação -->
+        <div class="navegacao">
+            <button class="botao-ifsc botao-primario">▶ Executar</button>
+            <button class="botao-ifsc botao-secundario">◀ Anterior</button>
+            <button class="botao-ifsc botao-secundario">▶ Próximo</button>
+            <button class="botao-ifsc botao-perigo">↻ Reiniciar</button>
+        </div>
+
+        <!-- Container para Entrada e Saída -->
+        <div class="containerEntradaSaida">
+            <!-- Entrada -->
+            <div class="entrada">
+                <div class="cabecalho-ifsc">
+                    <div class="icone-cabecalho">⌨ E</div>
+                    <div class="titulo-cabecalho">ENTRADA</div>
+                    <button class="controle-cabecalho">◀</button>
+                    <button class="botaoAcao botaoExecutar">Executar</button>
+                </div>
+                <div class="conteudo">
+                    <textarea class="areaTexto areaEntrada" placeholder="Digite o input aqui..."></textarea>
+                </div>
+            </div>
+
+            <!-- Saída -->
+            <div class="saida">
+                <div class="cabecalho-ifsc">
+                    <div class="icone-cabecalho">🖥</div>
+                    <div class="titulo-cabecalho">SAIDA</div>
+                    <button class="controle-cabecalho">Limpar</button>
+                </div>
+                <div class="conteudo">
+                    <pre class="areaTexto areaSaida"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memória -->
+    <div class="memoria">
+        <div class="cabecalho-ifsc">
+            <div class="icone-cabecalho">🖥</div>
+            <div class="titulo-cabecalho">MEMÓRIA</div>
+            <button class="controle-cabecalho">◀</button>
+        </div>
+        <div class="conteudo">
+            <div class="containerPilhaHeap">
+                <!-- Pilha -->
+                <div class="pilha bordaRedimensionavelDireita">
+                    <div class="cabecalho-ifsc">
+                        <div class="icone-cabecalho">≡</div>
+                        <div class="titulo-cabecalho">PILHA</div>
+                        <button class="controle-cabecalho">◀</button>
+                    </div>
+                    <div class="conteudo">
+                        <!-- Conteúdo da pilha vai aqui -->
+                    </div>
+                </div>
+
+                <!-- Heap -->
+                <div class="heap">
+                    <div class="cabecalho-ifsc">
+                        <div class="icone-cabecalho">●</div>
+                        <div class="titulo-cabecalho">HEAP</div>
+                        <button class="controle-cabecalho">◀</button>
+                    </div>
+                    <div class="conteudo">
+                        <!-- Conteúdo do heap vai aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tokens e AST -->
+<div class="tokensAst painelContainer bordaRedimensionavelBaixo">
+    <!-- Tokens -->
+    <div class="tokens bordaRedimensionavelDireita">
+        <div class="cabecalho-ifsc">
+            <div class="icone-cabecalho">≡</div>
+            <div class="titulo-cabecalho">TOKENS</div>
+            <button class="controle-cabecalho">◀</button>
+        </div>
+        <div class="conteudo">
+            <!-- Conteúdo dos tokens vai aqui -->
+        </div>
+    </div>
+
+    <!-- AST -->
+    <div class="ast">
+        <div class="cabecalho-ifsc">
+            <div class="icone-cabecalho">{ }</div>
+            <div class="titulo-cabecalho">AST</div>
+            <button class="controle-cabecalho">◀</button>
+        </div>
+        <div class="conteudo">
+            <!-- Conteúdo do AST vai aqui -->
+        </div>
+    </div>
+</div>
+
+<!-- Rodapé -->
+<div class="rodape-ifsc">
+    <div class="logo-ifsc-rodape">
+        <img src="logo-ifsc-horizontal.svg" alt="IFSC">
+    </div>
+    <div class="info-rodape">
+        <p>Instituto Federal de Santa Catarina</p>
+        <p>© 2025 - IFSCEE - Desenvolvido por [seu nome]</p>
+    </div>
+</div>
+
+<!-- Modal de Configuração -->
+<div id="fundoModal" class="fundoModal"></div>
+<div id="modalConfig" class="modalConfig">
+    <div class="cabecalhoModal">
+        <h3>Configurações de Layout</h3>
+        <button id="fechaModal" class="fechaModal">×</button>
+    </div>
+
+    <div class="opcoesLayout">
+        <div class="cartaoLayout" data-layout="3">
+            <div class="visualizacaoLayout">
+                <div class="visualizacaoArquivos" style="width: 10%"></div>
+                <div class="visualizacaoEditor" style="width: 60%"></div>
+                <div class="visualizacaoMemoria" style="width: 30%"></div>
+            </div>
+            <div class="nomeLayout">Foco no Editor</div>
+            <div class="descricaoLayout">10-60-30</div>
+        </div>
+
+        <div class="cartaoLayout" data-layout="4">
+            <div class="visualizacaoLayout" style="flex-direction: column">
+                <div class="visualizacaoArquivos" style="width: 100%; height: 33.33%"></div>
+                <div class="visualizacaoEditor" style="width: 100%; height: 33.33%"></div>
+                <div class="visualizacaoMemoria" style="width: 100%; height: 33.33%"></div>
+            </div>
+            <div class="nomeLayout">Layout Vertical</div>
+            <div class="descricaoLayout">Empilhado</div>
+        </div>
+
+        <div class="cartaoLayout" data-layout="5">
+            <div class="visualizacaoLayout">
+                <div class="visualizacaoArquivos" style="width: 10%"></div>
+                <div class="visualizacaoEditor" style="width: 50%"></div>
+                <div class="visualizacaoMemoria" style="width: 40%"></div>
+            </div>
+            <div class="nomeLayout">Tela Dividida</div>
+            <div class="descricaoLayout">10-50-40</div>
+        </div>
+
+        <div class="cartaoLayout" data-layout="6">
+            <div class="visualizacaoLayout">
+                <div class="visualizacaoArquivos" style="width: 10%"></div>
+                <div class="visualizacaoEditor" style="width: 30%"></div>
+                <div class="visualizacaoMemoria" style="width: 60%"></div>
+            </div>
+            <div class="nomeLayout">Foco na Memória</div>
+            <div class="descricaoLayout">10-30-60</div>
+        </div>
+    </div>
+
+    <!-- Personalização de Layout -->
+    <div class="containerPersonalizacao">
+        <div class="tituloPersonalizacao">Personalização de Layout</div>
+
+        <div class="containerCaixaSelecao">
+            <input type="checkbox" id="habilitaPersonalizacao" class="caixaSelecaoPersonalizada" aria-label="Habilitar personalização">
+            <label for="habilitaPersonalizacao">Habilitar valores personalizados</label>
+        </div>
+
+        <div class="camposPersonalizados">
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraArquivos">Largura Arquivos (%)</label>
+                <input type="number" id="larguraArquivos" class="entradaPersonalizada" value="10" min="5" max="95">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraEditor">Largura Editor (%)</label>
+                <input type="number" id="larguraEditor" class="entradaPersonalizada" value="30" min="5" max="95">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraMemoria">Largura Memória (%)</label>
+                <input type="number" id="larguraMemoria" class="entradaPersonalizada" value="60" min="5" max="95">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraTokens">Largura Tokens (%)</label>
+                <input type="number" id="larguraTokens" class="entradaPersonalizada" value="50" min="10" max="90">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraAst">Largura AST (%)</label>
+                <input type="number" id="larguraAst" class="entradaPersonalizada" value="50" min="10" max="90">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraPilha">Largura Pilha (%)</label>
+                <input type="number" id="larguraPilha" class="entradaPersonalizada" value="20" min="10" max="90">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="larguraHeap">Largura Heap (%)</label>
+                <input type="number" id="larguraHeap" class="entradaPersonalizada" value="80" min="10" max="90">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="alturaAst">Altura AST (vh)</label>
+                <input type="number" id="alturaAst" class="entradaPersonalizada" value="20" min="5" max="50">
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="direcaoPrincipal">Direção Principal</label>
+                <select id="direcaoPrincipal" class="entradaPersonalizada">
+                    <option value="row">Horizontal</option>
+                    <option value="column">Vertical</option>
+                </select>
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="direcaoTokensAst">Direção Tokens/AST</label>
+                <select id="direcaoTokensAst" class="entradaPersonalizada">
+                    <option value="row">Horizontal</option>
+                    <option value="column">Vertical</option>
+                </select>
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="direcaoPilhaHeap">Direção Pilha/Heap</label>
+                <select id="direcaoPilhaHeap" class="entradaPersonalizada">
+                    <option value="row">Horizontal</option>
+                    <option value="column">Vertical</option>
+                </select>
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="direcaoEntradaSaida">Direção Entrada/Saída</label>
+                <select id="direcaoEntradaSaida" class="entradaPersonalizada">
+                    <option value="row">Horizontal</option>
+                    <option value="column">Vertical</option>
+                </select>
+            </div>
+
+            <div class="campoPersonalizado">
+                <label class="rotuloPersonalizado" for="nomeLayout">Nome do Layout</label>
+                <input type="text" id="nomeLayout" class="entradaPersonalizada" value="Meu Layout" maxlength="20">
+            </div>
+        </div>
+    </div>
+
+    <button id="aplicaLayout" class="botaoAcao botaoAplicar">Aplicar Layout</button>
+</div>
+
+<script>
+    // Variáveis para armazenar as configurações de layout
+    let layoutSelecionado = localStorage.getItem('layoutPreferido') || '6'; // Layout 6 como padrão
+    let layoutsPersonalizados = JSON.parse(localStorage.getItem('layoutsPersonalizados') || '{}');
+
+    // Função para alternar o menu de layouts
+    function alternaMenu() {
+        const menu = document.getElementById('menuLayouts');
+        menu.classList.toggle('ativo');
+    }
+
+    // Função para abrir a janela modal de configuração
+    function abreModalConfig() {
+        const modal = document.getElementById('modalConfig');
+        const fundoModal = document.getElementById('fundoModal');
+        modal.classList.add('ativo');
+        fundoModal.classList.add('ativo');
+
+        // Marcar o layout atual como selecionado
+        const layoutAtual = localStorage.getItem('layoutPreferido') || '6';
+        document.querySelectorAll('.cartaoLayout').forEach(cartao => {
+            if (cartao.getAttribute('data-layout') === layoutAtual) {
+                cartao.classList.add('selecionado');
+            } else {
+                cartao.classList.remove('selecionado');
+            }
+        });
+    }
+
+    // Função para fechar a janela modal de configuração
+    function fechaModalConfig() {
+        const modal = document.getElementById('modalConfig');
+        const fundoModal = document.getElementById('fundoModal');
+        modal.classList.remove('ativo');
+        fundoModal.classList.remove('ativo');
+    }
+
+    // Função para mudar o layout
+    function mudaLayout(numero) {
+        const body = document.body;
+
+        // Remover todas as classes de layout existentes
+        body.classList.remove('layout3', 'layout4', 'layout5', 'layout6');
+        body.classList.remove('layoutPersonalizado');
+
+        // Verificar se é um layout personalizado
+        if (numero === 'personalizado') {
+            aplicaLayoutPersonalizado();
+            body.classList.add('layoutPersonalizado');
+        }
+        // Adicionar a classe de layout selecionada
+        else {
+            body.classList.add('layout' + numero);
+        }
+
+        // Salvar a preferência do usuário
+        localStorage.setItem('layoutPreferido', numero);
+
+        // Fechar o menu
+        document.getElementById('menuLayouts').classList.remove('ativo');
+
+        // Marcar o layout selecionado no modal
+        document.querySelectorAll('.cartaoLayout').forEach(cartao => {
+            if (cartao.getAttribute('data-layout') === numero.toString()) {
+                cartao.classList.add('selecionado');
+            } else {
+                cartao.classList.remove('selecionado');
+            }
+        });
+    }
+
+    // Função para aplicar layout personalizado
+    function aplicaLayoutPersonalizado() {
+        // Verificar se o checkbox está marcado
+        const habilitaPersonalizacao = document.getElementById('habilitaPersonalizacao').checked;
+
+        if (!habilitaPersonalizacao) return;
+
+        // Pegar valores dos campos
+        const larguraArquivos = document.getElementById('larguraArquivos').value + '%';
+        const larguraEditor = document.getElementById('larguraEditor').value + '%';
+        const larguraMemoria = document.getElementById('larguraMemoria').value + '%';
+        const larguraTokens = document.getElementById('larguraTokens').value + '%';
+        const larguraAst = document.getElementById('larguraAst').value + '%';
+        const larguraPilha = document.getElementById('larguraPilha').value + '%';
+        const larguraHeap = document.getElementById('larguraHeap').value + '%';
+        const alturaAst = document.getElementById('alturaAst').value + 'vh';
+        const direcaoPrincipal = document.getElementById('direcaoPrincipal').value;
+        const direcaoTokensAst = document.getElementById('direcaoTokensAst').value;
+        const direcaoPilhaHeap = document.getElementById('direcaoPilhaHeap').value;
+        const direcaoEntradaSaida = document.getElementById('direcaoEntradaSaida').value;
+        const nomeLayout = document.getElementById('nomeLayout').value;
+
+        // Aplicar os valores às variáveis CSS
+        document.documentElement.style.setProperty('--larguraArquivos', larguraArquivos);
+        document.documentElement.style.setProperty('--larguraEditor', larguraEditor);
+        document.documentElement.style.setProperty('--larguraMemoria', larguraMemoria);
+        document.documentElement.style.setProperty('--larguraTokens', larguraTokens);
+        document.documentElement.style.setProperty('--larguraAst', larguraAst);
+        document.documentElement.style.setProperty('--larguraPilha', larguraPilha);
+        document.documentElement.style.setProperty('--larguraHeap', larguraHeap);
+        document.documentElement.style.setProperty('--alturaAst', alturaAst);
+        document.documentElement.style.setProperty('--direcaoPrincipal', direcaoPrincipal);
+        document.documentElement.style.setProperty('--direcaoTokensAst', direcaoTokensAst);
+        document.documentElement.style.setProperty('--direcaoPilhaHeap', direcaoPilhaHeap);
+        document.documentElement.style.setProperty('--direcaoEntradaSaida', direcaoEntradaSaida);
+
+        // Salvar configurações personalizadas diretamente
+        layoutsPersonalizados[nomeLayout] = {
+            larguraArquivos,
+            larguraEditor,
+            larguraMemoria,
+            larguraTokens,
+            larguraAst,
+            larguraPilha,
+            larguraHeap,
+            alturaAst,
+            direcaoPrincipal,
+            direcaoTokensAst,
+            direcaoPilhaHeap,
+            direcaoEntradaSaida,
+            nomeLayout
+        };
+        localStorage.setItem('layoutsPersonalizados', JSON.stringify(layoutsPersonalizados));
+
+        // Atualizar menu de layouts
+        atualizaMenuPersonalizado();
+    }
+
+    // Função para atualizar o menu com layouts personalizados
+    function atualizaMenuPersonalizado() {
+        // Verificar se já existe um item personalizado no menu
+        let menuPersonalizado = document.querySelector('.opcaoLayout[data-tipo="personalizado"]');
+
+        // Pegar o nome do layout atual
+        const nomeLayout = document.getElementById('nomeLayout').value;
+
+        if (!menuPersonalizado) {
+            // Criar nova opção no menu
+            const menuLayouts = document.getElementById('menuLayouts');
+            const novaOpcao = document.createElement('button');
+            novaOpcao.className = 'opcaoLayout';
+            novaOpcao.setAttribute('data-layout', 'personalizado');
+            novaOpcao.setAttribute('data-tipo', 'personalizado');
+            novaOpcao.textContent = nomeLayout;
+
+            // Adicionar event listener
+            novaOpcao.addEventListener('click', function() {
+                mudaLayout('personalizado');
+            });
+
+            // Adicionar ao menu
+            menuLayouts.appendChild(novaOpcao);
+        } else {
+            // Atualizar texto do item existente
+            menuPersonalizado.textContent = nomeLayout;
+        }
+    }
+
+    // Função para configurar o redimensionamento horizontal
+    function configuraRedimensionamentoHorizontal(elementoEsquerda, elementoDireita) {
+        // Estado de arrasto
+        let arrastando = false;
+        let inicioX = 0;
+        let larguraInicialEsq = 0;
+        let larguraInicialDir = 0;
+
+        // Função para iniciar o arrasto
+        function iniciaArrasto(e) {
+            // Apenas reagir se o clique for próximo à borda direita (4px)
+            const rect = elementoEsquerda.getBoundingClientRect();
+            const x = e.clientX || (e.touches && e.touches[0].clientX);
+
+            // Verificar se o clique foi próximo à borda direita
+            if (x < rect.right - 5 || x > rect.right + 1) {
+                return;
+            }
+
+            e.preventDefault();
+            arrastando = true;
+            inicioX = e.clientX || (e.touches && e.touches[0].clientX);
+            larguraInicialEsq = elementoEsquerda.offsetWidth;
+            larguraInicialDir = elementoDireita.offsetWidth;
+
+            // Adicionar classe para indicar que está redimensionando
+            document.body.classList.add('redimensionandoH');
+
+            // Impedir seleção de texto durante o arrasto
+            document.body.style.userSelect = 'none';
+        }
+
+        // Função para executar durante o arrasto
+        function duranteArrasto(e) {
+            if (!arrastando) return;
+
+            const x = e.clientX || (e.touches && e.touches[0].clientX);
+            const deslocamento = x - inicioX;
+
+            // Calcular novas larguras
+            const container = elementoEsquerda.parentElement;
+            const larguraTotal = container.offsetWidth;
+
+            // Larguras mínimas (10% do total)
+            const larguraMinima = larguraTotal * 0.1;
+
+            // Novas larguras em pixels
+            let novaLarguraEsq = larguraInicialEsq + deslocamento;
+            let novaLarguraDir = larguraInicialDir - deslocamento;
+
+            // Verificar limites mínimos
+            if (novaLarguraEsq < larguraMinima || novaLarguraDir < larguraMinima) {
+                return;
+            }
+
+            // Converter para porcentagens
+            const porcentagemEsq = (novaLarguraEsq / larguraTotal) * 100;
+            const porcentagemDir = (novaLarguraDir / larguraTotal) * 100;
+
+            // Aplicar novas larguras
+            elementoEsquerda.style.width = porcentagemEsq + '%';
+            elementoDireita.style.width = porcentagemDir + '%';
+        }
+
+        // Função para encerrar o arrasto
+        function encerraArrasto() {
+            if (!arrastando) return;
+
+            arrastando = false;
+            document.body.classList.remove('redimensionandoH');
+
+            // Reativar seleção de texto
+            document.body.style.userSelect = '';
+        }
+
+        // Registrar eventos para mouse
+        elementoEsquerda.addEventListener('mousedown', iniciaArrasto);
+        document.addEventListener('mousemove', duranteArrasto);
+        document.addEventListener('mouseup', encerraArrasto);
+
+        // Registrar eventos para toque
+        elementoEsquerda.addEventListener('touchstart', iniciaArrasto);
+        document.addEventListener('touchmove', duranteArrasto);
+        document.addEventListener('touchend', encerraArrasto);
+    }
+
+    // Função para configurar o redimensionamento vertical
+    function configuraRedimensionamentoVertical(elementoCima, elementoBaixo) {
+        // Estado de arrasto
+        let arrastando = false;
+        let inicioY = 0;
+        let alturaInicialCima = 0;
+        let alturaInicialBaixo = 0;
+
+        // Função para iniciar o arrasto
+        function iniciaArrasto(e) {
+            // Apenas reagir se o clique for próximo à borda inferior (4px)
+            const rect = elementoCima.getBoundingClientRect();
+            const y = e.clientY || (e.touches && e.touches[0].clientY);
+
+            // Verificar se o clique foi próximo à borda inferior
+            if (y < rect.bottom - 5 || y > rect.bottom + 1) {
+                return;
+            }
+
+            e.preventDefault();
+            arrastando = true;
+            inicioY = e.clientY || (e.touches && e.touches[0].clientY);
+            alturaInicialCima = elementoCima.offsetHeight;
+            alturaInicialBaixo = elementoBaixo.offsetHeight;
+
+            // Adicionar classe para indicar que está redimensionando
+            document.body.classList.add('redimensionandoV');
+
+            // Impedir seleção de texto durante o arrasto
+            document.body.style.userSelect = 'none';
+        }
+
+        // Função para executar durante o arrasto
+        function duranteArrasto(e) {
+            if (!arrastando) return;
+
+            const y = e.clientY || (e.touches && e.touches[0].clientY);
+            const deslocamento = y - inicioY;
+
+            // Calcular novas alturas
+            const container = elementoCima.parentElement;
+            const alturaTotal = container.offsetHeight;
+
+            // Alturas mínimas (10% do total)
+            const alturaMinima = alturaTotal * 0.1;
+
+            // Novas alturas em pixels
+            let novaAlturaCima = alturaInicialCima + deslocamento;
+            let novaAlturaBaixo = alturaInicialBaixo - deslocamento;
+
+            // Verificar limites mínimos
+            if (novaAlturaCima < alturaMinima || novaAlturaBaixo < alturaMinima) {
+                return;
+            }
+
+            // Converter para porcentagens
+            const porcentagemCima = (novaAlturaCima / alturaTotal) * 100;
+            const porcentagemBaixo = (novaAlturaBaixo / alturaTotal) * 100;
+
+            // Aplicar novas alturas
+            elementoCima.style.height = porcentagemCima + '%';
+            elementoBaixo.style.height = porcentagemBaixo + '%';
+        }
+
+        // Função para encerrar o arrasto
+        function encerraArrasto() {
+            if (!arrastando) return;
+
+            arrastando = false;
+            document.body.classList.remove('redimensionandoV');
+
+            // Reativar seleção de texto
+            document.body.style.userSelect = '';
+        }
+
+        // Registrar eventos para mouse
+        elementoCima.addEventListener('mousedown', iniciaArrasto);
+        document.addEventListener('mousemove', duranteArrasto);
+        document.addEventListener('mouseup', encerraArrasto);
+
+        // Registrar eventos para toque
+        elementoCima.addEventListener('touchstart', iniciaArrasto);
+        document.addEventListener('touchmove', duranteArrasto);
+        document.addEventListener('touchend', encerraArrasto);
+    }
+
+    // Inicializar a aplicação quando o DOM estiver pronto
+    document.addEventListener('DOMContentLoaded', function() {
+        // Desabilitar campos de personalização por padrão
+        const camposPersonalizados = document.querySelectorAll('.entradaPersonalizada');
+        camposPersonalizados.forEach(campo => {
+            campo.disabled = true;
+        });
+
+        // Event listener para o botão de menu
+        document.getElementById('botaoMenu').addEventListener('click', alternaMenu);
+
+        // Event listener para o botão de configuração
+        document.getElementById('botaoConfig').addEventListener('click', abreModalConfig);
+
+        // Event listener para fechar o modal
+        document.getElementById('fechaModal').addEventListener('click', fechaModalConfig);
+        document.getElementById('fundoModal').addEventListener('click', fechaModalConfig);
+
+        // Event listeners para os cards de layout no modal
+        document.querySelectorAll('.cartaoLayout').forEach(cartao => {
+            cartao.addEventListener('click', function() {
+                // Remover seleção anterior
+                document.querySelectorAll('.cartaoLayout').forEach(c => c.classList.remove('selecionado'));
+
+                // Adicionar seleção atual
+                this.classList.add('selecionado');
+
+                // Armazenar o layout selecionado
+                layoutSelecionado = this.getAttribute('data-layout');
+            });
+        });
+
+        // Event listener para o botão aplicar
+        document.getElementById('aplicaLayout').addEventListener('click', function() {
+            // Verificar se a personalização está habilitada
+            const habilitaPersonalizacao = document.getElementById('habilitaPersonalizacao').checked;
+
+            if (habilitaPersonalizacao) {
+                // Validar que a soma dos percentuais é 100%
+                const larguraArquivos = parseInt(document.getElementById('larguraArquivos').value);
+                const larguraEditor = parseInt(document.getElementById('larguraEditor').value);
+                const larguraMemoria = parseInt(document.getElementById('larguraMemoria').value);
+                const larguraTokens = parseInt(document.getElementById('larguraTokens').value);
+                const larguraAst = parseInt(document.getElementById('larguraAst').value);
+                const larguraPilha = parseInt(document.getElementById('larguraPilha').value);
+                const larguraHeap = parseInt(document.getElementById('larguraHeap').value);
+
+                const totalColunas = larguraArquivos + larguraEditor + larguraMemoria;
+                const totalTokensAst = larguraTokens + larguraAst;
+                const totalPilhaHeap = larguraPilha + larguraHeap;
+
+                if (totalColunas !== 100) {
+                    alert('A soma das larguras das colunas principais deve ser igual a 100%. Atual: ' + totalColunas + '%');
+                    return;
+                }
+
+                if (totalTokensAst !== 100) {
+                    alert('A soma das larguras de Tokens e AST deve ser igual a 100%. Atual: ' + totalTokensAst + '%');
+                    return;
+                }
+
+                if (totalPilhaHeap !== 100) {
+                    alert('A soma das larguras de Pilha e Heap deve ser igual a 100%. Atual: ' + totalPilhaHeap + '%');
+                    return;
+                }
+
+                mudaLayout('personalizado');
+            } else {
+                mudaLayout(layoutSelecionado);
+            }
+
+            fechaModalConfig();
+        });
+
+        // Event listener para o checkbox de personalização
+        document.getElementById('habilitaPersonalizacao').addEventListener('change', function() {
+            const camposPersonalizados = document.querySelectorAll('.entradaPersonalizada');
+            const estaHabilitado = this.checked;
+
+            // Habilitar/desabilitar campos
+            camposPersonalizados.forEach(campo => {
+                campo.disabled = !estaHabilitado;
+            });
+
+            // Se habilitado, pré-selecionar layout personalizado
+            if (estaHabilitado) {
+                document.querySelectorAll('.cartaoLayout').forEach(cartao => {
+                    cartao.classList.remove('selecionado');
+                });
+                layoutSelecionado = 'personalizado';
+            }
+        });
+
+        // Adicionar event listeners para todas as opções de layout do menu
+        document.querySelectorAll('.opcaoLayout').forEach(botao => {
+            botao.addEventListener('click', function() {
+                mudaLayout(this.getAttribute('data-layout'));
+            });
+        });
+
+        // Verificar se há preferência de layout salva
+        const layoutSalvo = localStorage.getItem('layoutPreferido');
+        if (layoutSalvo) {
+            mudaLayout(layoutSalvo);
+        } else {
+            // Aplicar layout 6 como padrão se não houver preferência salva
+            mudaLayout('6');
+        }
+
+        // Fechar o menu ao clicar fora dele
+        document.addEventListener('click', function(evento) {
+            const botaoMenu = document.getElementById('botaoMenu');
+            const menuLayouts = document.getElementById('menuLayouts');
+
+            if (!botaoMenu.contains(evento.target) && !menuLayouts.contains(evento.target)) {
+                menuLayouts.classList.remove('ativo');
+            }
+        });
+
+        // Inicializar sistema de redimensionamento
+        setTimeout(function() {
+            try {
+                // Redimensionamento horizontal para todos os painéis adjacentes
+                const elementosRedimensionaveis = document.querySelectorAll('.bordaRedimensionavelDireita');
+                elementosRedimensionaveis.forEach(elemento => {
+                    const proximoElemento = elemento.nextElementSibling;
+                    if (proximoElemento) {
+                        configuraRedimensionamentoHorizontal(elemento, proximoElemento);
+                    }
+                });
+
+                // Redimensionamento vertical
+                const elementosRedimensionaveisVertical = document.querySelectorAll('.bordaRedimensionavelBaixo');
+                elementosRedimensionaveisVertical.forEach(elemento => {
+                    const proximoElemento = elemento.nextElementSibling;
+                    if (proximoElemento) {
+                        configuraRedimensionamentoVertical(elemento, proximoElemento);
+                    }
+                });
+
+                // Configuração específica para componentes principais
+                configuraRedimensionamentoVertical(
+                    document.querySelector('.principal'),
+                    document.querySelector('.tokensAst')
+                );
+
+                console.log('Sistema de redimensionamento inicializado com sucesso');
+            } catch (erro) {
+                console.error('Erro ao inicializar sistema de redimensionamento:', erro);
+            }
+        }, 1000);
+
+        // Carregar layout personalizado salvo
+        const layoutsPersonalizadosSalvos = JSON.parse(localStorage.getItem('layoutsPersonalizados') || '{}');
+        if (Object.keys(layoutsPersonalizadosSalvos).length > 0) {
+            // Pegar o primeiro layout personalizado
+            const primeiroLayout = Object.keys(layoutsPersonalizadosSalvos)[0];
+            const config = layoutsPersonalizadosSalvos[primeiroLayout];
+
+            // Preencher os campos
+            document.getElementById('larguraArquivos').value = parseInt(config.larguraArquivos);
+            document.getElementById('larguraEditor').value = parseInt(config.larguraEditor);
+            document.getElementById('larguraMemoria').value = parseInt(config.larguraMemoria);
+
+            if (config.larguraTokens) document.getElementById('larguraTokens').value = parseInt(config.larguraTokens);
+            if (config.larguraAst) document.getElementById('larguraAst').value = parseInt(config.larguraAst);
+            if (config.larguraPilha) document.getElementById('larguraPilha').value = parseInt(config.larguraPilha);
+            if (config.larguraHeap) document.getElementById('larguraHeap').value = parseInt(config.larguraHeap);
+
+            document.getElementById('alturaAst').value = parseInt(config.alturaAst);
+            document.getElementById('direcaoPrincipal').value = config.direcaoPrincipal;
+            document.getElementById('direcaoTokensAst').value = config.direcaoTokensAst;
+            document.getElementById('direcaoPilhaHeap').value = config.direcaoPilhaHeap;
+            document.getElementById('direcaoEntradaSaida').value = config.direcaoEntradaSaida;
+            document.getElementById('nomeLayout').value = config.nomeLayout;
+
+            // Adicionar ao menu
+            atualizaMenuPersonalizado();
+        }
+    });
+</script>
+</body>
+</html>
