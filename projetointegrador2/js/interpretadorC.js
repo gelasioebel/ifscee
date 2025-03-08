@@ -38,7 +38,6 @@ class InterpretadorC {
 
         // Funções padrão da biblioteca C
         this.funcoesBiblioteca = new Map();
-        this._inicializaFuncoesBiblioteca();
 
         // Configurações
         this.configuracoes = {
