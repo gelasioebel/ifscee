@@ -214,9 +214,25 @@ class AnalisadorLexico {
 
         // Operadores específicos C23
         const operadoresC23 = {
-            '<': { '=': { '>': '<=>' } }, // operador spaceship
-            '<': { '=': { '=': { '>': '<==>' } } } // operador de equivalência
+            '<': {
+                '=': {
+                    '>': '<=>', // Operador spaceship (comparação three-way)
+                    '=': {
+                        '>': '<==>' // Operador de equivalência
+                    }
+                }
+            }
+
         };
+
+        // // Operadores específicos C23
+        // TODO FIX
+        //  const operadoresC23 = {
+        //     '<': { '=': { '>': '<=>' } }, // operador spaceship
+        //     '<': { '=': { '=': { '>': '<==>' } } } // operador de equivalência
+        // };
+
+
 
         const char = this.pegaCharAtual();
         let token = char;
