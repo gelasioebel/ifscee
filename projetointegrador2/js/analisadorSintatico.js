@@ -2032,6 +2032,7 @@ class AnalisadorSintatico {
     }
 
     /**
+     *
      * Processa uma expressão relacional (<, >, <=, >=)
      * @return {NoAST} Nó AST da expressão relacional
      * @private
