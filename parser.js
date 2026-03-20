@@ -17,6 +17,8 @@ class ForStatementNode { constructor(init, cond, inc, body, l) { this.type = 'Fo
 class BreakStatementNode { constructor(l) { this.type = 'BreakStatement'; this.line = l; } }
 class ContinueStatementNode { constructor(l) { this.type = 'ContinueStatement'; this.line = l; } }
 class TypeNameNode { constructor(n) { this.type = 'TypeName'; this.value = n; } }
+class StructDeclarationNode { constructor(n, m, l) { this.type = 'StructDeclaration'; this.name = n; this.members = m; this.line = l; } }
+class MemberAccessNode { constructor(o, m, isPtr, l) { this.type = 'MemberAccess'; this.object = o; this.member = m; this.isPointer = isPtr; this.line = l; } }
 
 class IFSCeeParser {
     constructor(tokens) { this.tokens = tokens; this.position = 0; }
@@ -31,20 +33,37 @@ class IFSCeeParser {
     }
 
     isTypeKeyword(token) {
-        const typeKeys = ['int', 'char', 'void', 'float', 'double', 'short', 'long', 'unsigned', 'signed', '_Bool', 'const', 'volatile', 'static', 'extern'];
+        const typeKeys = ['int', 'char', 'void', 'float', 'double', 'short', 'long', 'unsigned', 'signed', '_Bool', 'const', 'volatile', 'static', 'extern', 'struct', 'union', 'enum', 'typedef'];
         return token && token.type === 'KEYWORD' && typeKeys.includes(token.value);
     }
 
     parseTypeStr() {
         let modifiers = [];
-        while (this.isTypeKeyword(this.peek())) modifiers.push(this.consume('KEYWORD').value);
+        while (this.isTypeKeyword(this.peek())) {
+            const keyword = this.consume('KEYWORD').value;
+            modifiers.push(keyword);
+
+            // Se encontrarmos struct/union/enum, parseamos o nome do tipo
+            if (keyword === 'struct' || keyword === 'union' || keyword === 'enum') {
+                if (this.peek().type === 'IDENTIFIER') {
+                    modifiers.push(this.consume('IDENTIFIER').value);
+                }
+            }
+        }
         while (this.peek().value === '*') { modifiers.push('*'); this.consume('OPERATOR', '*'); }
         return modifiers.join(' ');
     }
 
     parse() {
         const program = new ProgramNode();
-        while (this.peek().type !== 'EOF') program.body.push(this.parseFunctionDeclaration());
+        while (this.peek().type !== 'EOF') {
+            // Detecta se é struct/union/enum declaration ou função
+            if (this.peek().value === 'struct' || this.peek().value === 'union') {
+                program.body.push(this.parseStructDeclaration());
+            } else {
+                program.body.push(this.parseFunctionDeclaration());
+            }
+        }
         return program;
     }
 
@@ -267,6 +286,14 @@ class IFSCeeParser {
                     args.push(this.parseExpression()); if (this.peek().value === ',') this.consume('PUNCT', ',');
                 }
                 this.consume('PUNCT', ')'); left = new CallExpressionNode(left, args, left.line);
+            } else if (this.peek().value === '.') {
+                const dotToken = this.consume('PUNCT', '.');
+                const memberToken = this.consume('IDENTIFIER');
+                left = new MemberAccessNode(left, memberToken.value, false, dotToken.line);
+            } else if (this.peek().value === '->') {
+                const arrowToken = this.consume('OPERATOR', '->');
+                const memberToken = this.consume('IDENTIFIER');
+                left = new MemberAccessNode(left, memberToken.value, true, arrowToken.line);
             } else if (this.peek().type === 'OPERATOR' && ['++', '--'].includes(this.peek().value)) {
                 const op = this.consume('OPERATOR'); left = new UnaryExpressionNode(op.value, left, op.line);
             } else { break; }
@@ -301,5 +328,49 @@ class IFSCeeParser {
         if (consumedToken.type === 'IDENTIFIER') return new IdentifierNode(consumedToken.value, consumedToken.line);
 
         throw new Error(`[Linha ${consumedToken.line}] Expressão inválida iniciada com '${consumedToken.value}'.`);
+    }
+
+    parseStructDeclaration() {
+        const structToken = this.consume('KEYWORD'); // 'struct' ou 'union'
+        const isUnion = structToken.value === 'union';
+        let structName = null;
+
+        // Nome da struct (opcional para structs anônimas)
+        if (this.peek().type === 'IDENTIFIER') {
+            structName = this.consume('IDENTIFIER').value;
+        }
+
+        // Se não tiver {, é apenas uma forward declaration ou uso de tipo
+        if (this.peek().value !== '{') {
+            // Forward declaration: struct Point;
+            this.consume('PUNCT', ';');
+            return new StructDeclarationNode(structName, [], structToken.line);
+        }
+
+        // Parsea os membros da struct
+        this.consume('PUNCT', '{');
+        const members = [];
+        while (this.peek().value !== '}' && this.peek().type !== 'EOF') {
+            const memberType = this.parseTypeStr();
+            const memberName = this.consume('IDENTIFIER').value;
+
+            // Suporte a arrays como membros: char name[50];
+            let arrayDimensions = null;
+            if (this.peek().value === '[') {
+                arrayDimensions = [];
+                while (this.peek().value === '[') {
+                    this.consume('PUNCT', '[');
+                    arrayDimensions.push(this.parseExpression());
+                    this.consume('PUNCT', ']');
+                }
+            }
+
+            this.consume('PUNCT', ';');
+            members.push({ type: memberType, name: memberName, arrayDimensions });
+        }
+        this.consume('PUNCT', '}');
+        this.consume('PUNCT', ';');
+
+        return new StructDeclarationNode(structName, members, structToken.line);
     }
 }

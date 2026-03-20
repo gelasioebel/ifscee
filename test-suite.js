@@ -231,6 +231,94 @@ int main() {
 }
 `, 'H');
 
+// Test 16: Struct declaration and member access
+test('Struct - Basic Declaration', `
+#include <stdio.h>
+
+struct Point {
+    int x;
+    int y;
+};
+
+int main() {
+    struct Point p1;
+    p1.x = 10;
+    p1.y = 20;
+    printf("%d", p1.x + p1.y);
+    return 0;
+}
+`, '30');
+
+// Test 17: Struct with pointer access
+test('Struct - Pointer Access (->)', `
+#include <stdio.h>
+
+struct Point {
+    int x;
+    int y;
+};
+
+int main() {
+    struct Point p1;
+    struct Point* ptr = &p1;
+    ptr->x = 15;
+    ptr->y = 25;
+    printf("%d", ptr->x + ptr->y);
+    return 0;
+}
+`, '40');
+
+// Test 18: Struct with arrays
+test('Struct - Array Members', `
+#include <stdio.h>
+
+struct Student {
+    int age;
+    int grades[3];
+};
+
+int main() {
+    struct Student alice;
+    alice.age = 20;
+    alice.grades[0] = 90;
+    alice.grades[1] = 85;
+    alice.grades[2] = 95;
+    printf("%d", alice.grades[0] + alice.grades[1] + alice.grades[2]);
+    return 0;
+}
+`, '270');
+
+// Test 19: sizeof struct
+test('Struct - sizeof', `
+#include <stdio.h>
+
+struct Simple {
+    int a;
+    int b;
+};
+
+int main() {
+    printf("%d", sizeof(struct Simple));
+    return 0;
+}
+`, '8');
+
+// Test 20: Struct padding
+test('Struct - Padding', `
+#include <stdio.h>
+
+struct Padded {
+    char c;
+    int i;
+    char d;
+};
+
+int main() {
+    printf("%d", sizeof(struct Padded));
+    return 0;
+}
+`, '12');
+
 console.log(`\n📊 Test Results:`);
 console.log(`   ✅ Passed: ${passedTests}`);
 console.log(`   ❌ Failed: ${failedTests}`);

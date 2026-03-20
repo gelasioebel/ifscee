@@ -3,6 +3,8 @@
  * Manages type sizes, floating point detection, const checking, and type casting
  */
 class TypeSystem {
+    static structDefinitions = new Map(); // Armazena as definições de structs
+
     /**
      * Get the size in bytes for a given C type
      * @param {string} typeStr - The type string (e.g., "int", "char*", "double")
@@ -11,6 +13,15 @@ class TypeSystem {
     static getSize(typeStr) {
         if (!typeStr) return 4; // Proteção contra tipos indefinidos (ex: raw bytes)
         if (typeStr.includes('*')) return 8;
+
+        // Suporte a structs: "struct Point" -> busca o tamanho calculado
+        if (typeStr.startsWith('struct ')) {
+            const structName = typeStr.split(' ')[1];
+            const structInfo = this.structDefinitions.get(structName);
+            if (structInfo) return structInfo.totalSize;
+            throw new Error(`Struct não definida: ${structName}`);
+        }
+
         if (typeStr.includes('double') || typeStr.includes('long long')) return 8;
         if (typeStr.includes('int') || typeStr.includes('float') || typeStr.includes('long')) return 4;
         if (typeStr.includes('short')) return 2;
@@ -30,6 +41,79 @@ class TypeSystem {
         if (!this.isFloat(typeStr) && !typeStr.includes('*')) return Math.trunc(value);
         return value;
     }
+
+    /**
+     * Calcula layout da struct com padding e alinhamento
+     * @param {Array} members - Array de {type, name, arrayDimensions}
+     * @returns {Object} {totalSize, members: [{name, type, offset, size}]}
+     */
+    static calculateStructLayout(members) {
+        let currentOffset = 0;
+        let maxAlignment = 1;
+        const layout = [];
+
+        for (const member of members) {
+            let memberSize = this.getSize(member.type);
+
+            // Se for array, multiplica o tamanho pela quantidade de elementos
+            if (member.arrayDimensions) {
+                let totalElements = 1;
+                for (const dim of member.arrayDimensions) {
+                    // dim pode ser um número literal ou expressão
+                    const dimValue = typeof dim === 'number' ? dim : (dim.value || 1);
+                    totalElements *= dimValue;
+                }
+                memberSize *= totalElements;
+            }
+
+            // Alinhamento: ponteiros = 8, double/long long = 8, int/float = 4, short = 2, char = 1
+            let alignment = 1;
+            if (member.type.includes('*')) alignment = 8;
+            else if (member.type.includes('double') || member.type.includes('long long')) alignment = 8;
+            else if (member.type.includes('int') || member.type.includes('float')) alignment = 4;
+            else if (member.type.includes('short')) alignment = 2;
+            else alignment = 1;
+
+            // Adiciona padding para alinhar
+            if (currentOffset % alignment !== 0) {
+                currentOffset += alignment - (currentOffset % alignment);
+            }
+
+            layout.push({
+                name: member.name,
+                type: member.type,
+                offset: currentOffset,
+                size: memberSize,
+                arrayDimensions: member.arrayDimensions
+            });
+
+            currentOffset += memberSize;
+            maxAlignment = Math.max(maxAlignment, alignment);
+        }
+
+        // Padding final para alinhar a struct inteira
+        if (currentOffset % maxAlignment !== 0) {
+            currentOffset += maxAlignment - (currentOffset % maxAlignment);
+        }
+
+        return { totalSize: currentOffset, members: layout, alignment: maxAlignment };
+    }
+
+    /**
+     * Registra uma struct no sistema de tipos
+     */
+    static registerStruct(name, members) {
+        const layout = this.calculateStructLayout(members);
+        this.structDefinitions.set(name, layout);
+        return layout;
+    }
+
+    /**
+     * Obtém informações de uma struct registrada
+     */
+    static getStruct(name) {
+        return this.structDefinitions.get(name);
+    }
 }
 
 /**
@@ -48,10 +132,21 @@ class MemoryManager {
     }
     allocateStack(name, rawValue, typeStr) {
         const byteSize = TypeSystem.getSize(typeStr);
-        const address = this.stackPointer; this.stackPointer += byteSize;
-        const castedValue = TypeSystem.cast(rawValue, typeStr);
-        this.ram.set(address, castedValue);
-        this.allocations.set(address, { region: 'STACK', name, type: typeStr, byteSize, active: true, isConst: TypeSystem.isConst(typeStr) });
+        const address = this.stackPointer;
+
+        // Se for uma struct, precisa inicializar todos os bytes
+        if (typeStr.startsWith('struct ')) {
+            for (let i = 0; i < byteSize; i++) {
+                this.ram.set(this.stackPointer++, null);
+            }
+            this.allocations.set(address, { region: 'STACK', name, type: typeStr, byteSize, active: true, isConst: TypeSystem.isConst(typeStr) });
+        } else {
+            this.stackPointer += byteSize;
+            const castedValue = TypeSystem.cast(rawValue, typeStr);
+            this.ram.set(address, castedValue);
+            this.allocations.set(address, { region: 'STACK', name, type: typeStr, byteSize, active: true, isConst: TypeSystem.isConst(typeStr) });
+        }
+
         return address;
     }
     freeStackRange(start, end) {
@@ -346,11 +441,13 @@ class IFSCeeInterpreter {
         switch (node.type) {
             case 'Program': return yield* this.visitProgram(node, env);
             case 'FunctionDeclaration': return yield* this.visitFunctionDeclaration(node, env);
+            case 'StructDeclaration': return yield* this.visitStructDeclaration(node, env);
             case 'VariableDeclaration': return yield* this.visitVariableDeclaration(node, env);
             case 'ArrayDeclaration': return yield* this.visitArrayDeclaration(node, env);
             case 'AssignmentExpression': return yield* this.visitAssignment(node, env);
             case 'UnaryExpression': return yield* this.visitUnary(node, env);
             case 'IndexExpression': return yield* this.visitIndex(node, env);
+            case 'MemberAccess': return yield* this.visitMemberAccess(node, env);
             case 'CallExpression': return yield* this.visitCall(node, env);
             case 'BinaryExpression': return yield* this.visitBinary(node, env);
             case 'ReturnStatement': return yield* this.visitReturn(node, env);
@@ -367,7 +464,11 @@ class IFSCeeInterpreter {
     }
 
     *visitProgram(node, env) {
-        for (const s of node.body) if (s.type === 'FunctionDeclaration') yield* this.visit(s, env);
+        // Registra structs e funções antes de executar main
+        for (const s of node.body) {
+            if (s.type === 'StructDeclaration') yield* this.visit(s, env);
+            else if (s.type === 'FunctionDeclaration') yield* this.visit(s, env);
+        }
         let main;
         try {
             main = env.get('main');
@@ -434,6 +535,11 @@ class IFSCeeInterpreter {
             let flatOffset = meta && meta.isArray ? this.getFlatOffset(meta.dimensions, indices, node.line) : indices[0];
             const bSize = meta ? meta.byteSize : 4;
             addr = base + (flatOffset * bSize);
+        } else if (node.left.type === 'MemberAccess') {
+            // Acesso a membro de struct (ex: p1.x = 10)
+            addr = yield* this.visit(node.left, env);
+            // Precisamos pegar o metadata do membro específico
+            // Por enquanto, não temos meta específico do membro
         } else throw new Error(`[Linha ${node.line}] L-value inválido.`);
 
         if (meta && meta.isConst) {
@@ -623,5 +729,65 @@ class IFSCeeInterpreter {
 
     visitLiteral(node) {
         if(node.rawType === 'STRING') return this.memory.allocateStringLiteral(node.value); return node.value;
+    }
+
+    *visitStructDeclaration(node, env) {
+        // Registra a struct no sistema de tipos
+        if (node.name && node.members.length > 0) {
+            // Avalia as dimensões de arrays dentro da struct
+            const evaluatedMembers = [];
+            for (const member of node.members) {
+                const memberCopy = { ...member };
+                if (member.arrayDimensions) {
+                    memberCopy.arrayDimensions = [];
+                    for (const dimExpr of member.arrayDimensions) {
+                        const dimValue = yield* this.visit(dimExpr, env);
+                        memberCopy.arrayDimensions.push(dimValue);
+                    }
+                }
+                evaluatedMembers.push(memberCopy);
+            }
+            TypeSystem.registerStruct(node.name, evaluatedMembers);
+        }
+        return null;
+    }
+
+    *visitMemberAccess(node, env) {
+        // Se for ponteiro (->), precisamos desreferenciar primeiro
+        let baseAddr;
+        if (node.isPointer) {
+            baseAddr = yield* this.visit(node.object, env);
+            if (!baseAddr || baseAddr === 0) {
+                throw new Error(`[Linha ${node.line}] ⚠️ NULL POINTER DEREFERENCE: Tentativa de acessar membro via ponteiro nulo.`);
+            }
+        } else {
+            // Se for acesso direto (.), precisamos do endereço da struct
+            if (node.object.type === 'Identifier') {
+                baseAddr = env.resolveAddress(node.object.name);
+            } else {
+                throw new Error(`[Linha ${node.line}] Acesso a membro requer identificador ou ponteiro.`);
+            }
+        }
+
+        // Obtém informações da struct
+        const baseMeta = this.memory.allocations.get(baseAddr);
+        if (!baseMeta || !baseMeta.type.startsWith('struct ')) {
+            throw new Error(`[Linha ${node.line}] Tentativa de acessar membro de não-struct.`);
+        }
+
+        const structName = baseMeta.type.split(' ')[1];
+        const structInfo = TypeSystem.getStruct(structName);
+        if (!structInfo) {
+            throw new Error(`[Linha ${node.line}] Struct não definida: ${structName}`);
+        }
+
+        // Procura o membro na struct
+        const memberInfo = structInfo.members.find(m => m.name === node.member);
+        if (!memberInfo) {
+            throw new Error(`[Linha ${node.line}] Membro '${node.member}' não existe na struct ${structName}.`);
+        }
+
+        // Retorna o endereço do membro
+        return baseAddr + memberInfo.offset;
     }
 }
